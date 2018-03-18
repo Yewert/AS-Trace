@@ -5,6 +5,8 @@ namespace AS_Route
 {
     public interface IAddressInfoProvider
     {
-        Result<AdressInfo>[] GetInfoForAdresses(IReadOnlyCollection<IPAddress> ipAddresses);
+        IEnumerable<Result<AdressInfo>> GetAdressesInfoParallel(IEnumerable<IPAddress> ipAddresses);
+        Result<AdressInfo> GetAdressInfo(IPAddress ipAddress, int attemptsNumber=10);
+        
     }
 }

@@ -63,8 +63,17 @@ namespace AS_Route
             {
                 return Ok(f());
             }
+            catch (AggregateException e)
+            {
+                foreach (var innerException in e.InnerExceptions)
+                {
+                    Program.Log.Error(innerException);
+                }
+                return Fail<T>(error ?? e.InnerExceptions[0].Message);
+            }
             catch (Exception e)
             {
+                Program.Log.Error(e);
                 return Fail<T>(error ?? e.Message);
             }
         }
@@ -76,8 +85,17 @@ namespace AS_Route
                 var res = await f();
                 return res;
             }
+            catch (AggregateException e)
+            {
+                foreach (var innerException in e.InnerExceptions)
+                {
+                    Program.Log.Error(innerException);
+                }
+                return Fail<T>(error ?? e.InnerExceptions[0].Message);
+            }
             catch (Exception e)
             {
+                Program.Log.Error(e);
                 return Fail<T>(error ?? e.Message);
             }
         }
@@ -89,8 +107,17 @@ namespace AS_Route
                 f();
                 return Ok();
             }
+            catch (AggregateException e)
+            {
+                foreach (var innerException in e.InnerExceptions)
+                {
+                    Program.Log.Error(innerException);
+                }
+                return Fail<None>(error ?? e.InnerExceptions[0].Message);
+            }
             catch (Exception e)
             {
+                Program.Log.Error(e);
                 return Fail<None>(error ?? e.Message);
             }
         }

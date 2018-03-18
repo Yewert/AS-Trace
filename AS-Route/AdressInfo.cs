@@ -2,7 +2,7 @@
 
 namespace AS_Route
 {
-    public struct AdressInfo : IAddressInfo
+    public class AdressInfo : IAddressInfo
     {
         public AdressInfo(IPAddress address, string country, string autonomousSystem, string internetServiceProvider)
         {
@@ -10,6 +10,11 @@ namespace AS_Route
             Country = country;
             AutonomousSystem = autonomousSystem;
             InternetServiceProvider = internetServiceProvider;
+        }
+
+        public override string ToString()
+        {
+            return $"Address: {Address}, Country: {Country}, AutonomousSystem: {AutonomousSystem}, InternetServiceProvider: {InternetServiceProvider}";
         }
 
         public IPAddress Address { get; }

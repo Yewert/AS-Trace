@@ -12,34 +12,86 @@ namespace AS_Route
 {
     public class IpApiAddressInfoProvider : IAddressInfoProvider
     {
-        public Result<AdressInfo>[] GetInfoForAdresses(IReadOnlyCollection<IPAddress> ipAddress)
+        public IEnumerable<Result<AdressInfo>> GetAdressesInfoParallel(IEnumerable<IPAddress> ipAddress)
         {
             return ProcessAllRequests(ipAddress);
         }
 
-        private Result<AdressInfo>[] ProcessAllRequests(IReadOnlyCollection<IPAddress> ipAddresses)
+        public Result<AdressInfo> GetAdressInfo(IPAddress ipAddress, int attemptsNumber=10)
         {
-            return Task.WhenAll(ipAddresses.Select(GetAddressInfoAsync)).Result;
+            var res = Result.Of(() =>
+            {
+                var request = WebRequest.CreateHttp(
+                    Uri.EscapeUriString($"http://ip-api.com/json/{ipAddress}"));
+                Task<string> requestTask = null;
+                for (var i = 0; i < attemptsNumber; i++)
+                {
+                    requestTask = ProcessRequestAsync(request);
+                    requestTask.Wait();
+                    if (!requestTask.IsCompleted || requestTask.IsFaulted) 
+                        continue;
+                    break;
+                }
+                if (ExtractAdressInfo(ipAddress, requestTask, out var adressInfo)) 
+                    return adressInfo;
+    
+                // ReSharper disable once PossibleNullReferenceException
+                throw requestTask.Exception;
+            });
+            return res;
         }
 
-        private async Task<Result<AdressInfo>> GetAddressInfoAsync(IPAddress ipAddress)
+        private IEnumerable<Result<AdressInfo>> ProcessAllRequests(IEnumerable<IPAddress> ipAddresses)
         {
+            return Task.WhenAll(ipAddresses.Select(x => GetAddressInfoAsync(x))).Result;
+        }
+
+        private async Task<Result<AdressInfo>> GetAddressInfoAsync(IPAddress ipAddress, int attemptsNumber=10)
+        {
+            if (attemptsNumber <= 0) throw new ArgumentOutOfRangeException(nameof(attemptsNumber));
             Program.Log.Info($"Processing request for {ipAddress}");
             var res = await Result.OfAsync(async () =>
             {
                 var request = WebRequest.CreateHttp(
                     Uri.EscapeUriString($"http://ip-api.com/json/{ipAddress}"));
-                var response = await ProcessRequestAsync(request);
-                var responseContent = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
+                Task<string> requestTask = null;
+                for (var i = 0; i < attemptsNumber; i++)
+                {
+                    requestTask = ProcessRequestAsync(request);
+                    await Task.WhenAny(requestTask);
+                    if (!requestTask.IsCompleted || requestTask.IsFaulted) 
+                        continue;
+                    break;
+                }
+                if (ExtractAdressInfo(ipAddress, requestTask, out var adressInfo)) 
+                    return adressInfo;
+    
+                // ReSharper disable once PossibleNullReferenceException
+                throw requestTask.Exception;
+            });
+            return res;
+        }
+
+        private static bool ExtractAdressInfo(IPAddress ipAddress, Task<string> requestTask, out AdressInfo adressInfo)
+        {
+            if (!requestTask.IsFaulted)
+            {
+                var responseContent = JsonConvert.DeserializeObject<Dictionary<string, string>>(requestTask.Result);
                 var isSuccessful = responseContent["status"] == "success";
                 if (isSuccessful)
-                    return new AdressInfo(ipAddress,
+                {
+                    adressInfo = new AdressInfo(ipAddress,
                         responseContent["country"],
                         responseContent["as"],
                         responseContent["isp"]);
-                throw new ArgumentException("Unsuccessful request");
-            });
-            return res;
+                    return true;
+                }
+
+                throw new ArgumentException($"Unsuccessful request: {responseContent["message"]}");
+            }
+
+            adressInfo = null;
+            return false;
         }
 
         private async Task<string> ProcessRequestAsync(WebRequest request)
